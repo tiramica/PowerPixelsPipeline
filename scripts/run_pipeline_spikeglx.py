@@ -5,7 +5,7 @@ Written by Guido Meijer
 """
 
 from powerpixels import Pipeline
-
+import subprocess
 import os
 from os.path import join, isdir
 import numpy as np
@@ -77,14 +77,14 @@ if __name__ == "__main__":
                 
                 # Add indication if neurons are good from several sources to the quality metrics
                 pp.automatic_curation()
-                
+                script_path = r"Y:\NeuRLab\protocol_specific\neuropixels\powerpixels\generate_curated_results.py" #Jongwon
+                subprocess.run(["python", script_path, str(pp.session_path)]) #Jongwon
                 # Synchronize spike sorting to the nidq clock
                 if pp.settings['USE_NIDAQ']:
                     pp.probe_synchronization()
                 
-                # Compress raw data
-                if pp.settings['COMPRESS_RAW_DATA']:
-                    pp.compress_raw_data()
+                # Compress raw data 
+                pp.compress_raw_data()
                             
                 probe_done[i] = True
                 print(f'Done! At {datetime.now().strftime("%H:%M")}')
