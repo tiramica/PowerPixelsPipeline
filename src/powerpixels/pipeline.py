@@ -94,63 +94,26 @@ class Pipeline:
 
     def restructure_files(self):
         """
-        Restructure the raw data files with improved robustness.
+        Restructure the raw data files
+    
         """
+        
+        # Detect data format if necessary
         if not hasattr(self, 'data_format'):
             self.detect_data_format()
-
-        if self.data_format != 'spikeglx':
-            return
-
-        raw_dir = self.session_path / 'raw_ephys_data'
-
-        # Early exit if probes are already structured
-        if list(raw_dir.rglob('probe*')):
-            return
-
-        # Get only directory children
-        dirs = [x for x in raw_dir.iterdir() if x.is_dir()]
-        if not dirs:
-            return
-
-        # Case 1: SpikeGLX default nested structure (session/g0/...)
-        # Check if the folder has a _g but no imec
-        if (len(dirs) == 1) and (('_g' in dirs[0].name) and ('imec' not in dirs[0].name)):
-            g_dir = dirs[0]
-            for item in g_dir.iterdir():
-                dest = raw_dir / item.name
-                if not dest.exists():
-                    shutil.move(str(item), str(dest))
-
-            # Cleanup empty g-folder
-            if not any(g_dir.iterdir()):
-                g_dir.rmdir()
-
-            # Refresh dir list for the imec renaming step
-            dirs = [x for x in raw_dir.iterdir() if x.is_dir()]
-
-        # Case 2: Multi-run check
-        if (len([d for d in dirs if '_g' in d.name]) > 1) and ('imec' not in dirs[0].name):
-            print(f"ERROR: Multiple runs detected in {raw_dir}. Manual intervention required.")
-            return
-
-        # Case 3: Standardize imec folder names to probeXX
-        for imec_dir in raw_dir.glob('*imec*'):
-            # Extract the number after 'imec' properly
-            # e.g., 'my_run_g0_imec0' -> '0'
-            try:
-                probe_idx = imec_dir.name.split('imec')[-1]
-                new_name = raw_dir / f"probe{probe_idx.zfill(2)}"  # e.g., probe00
-
-                if imec_dir == new_name:
-                    continue
-
-                if not new_name.exists():
-                    imec_dir.rename(new_name)
-                else:
-                    print(f"WARNING: Cannot rename {imec_dir.name}, {new_name.name} already exists.")
-            except (IndexError, ValueError):
-                print(f"WARNING: Could not parse probe index from {imec_dir.name}")
+        
+        # Restructure SpikeGLX recording folder structure
+        if ((self.data_format == 'spikeglx')
+            and len([i for i in os.listdir(self.session_path / 'raw_ephys_data') if i[:5] == 'probe']) == 0):
+            orig_dir = os.listdir(self.session_path / 'raw_ephys_data')[0]
+            for i, this_dir in enumerate(os.listdir(self.session_path / 'raw_ephys_data' / orig_dir)):
+                shutil.move(self.session_path / 'raw_ephys_data' / orig_dir / this_dir,
+                            self.session_path / 'raw_ephys_data')
+            os.rmdir(self.session_path / 'raw_ephys_data' / orig_dir)
+            for i, this_path in enumerate((self.session_path / 'raw_ephys_data').glob('*imec*')):
+                this_path.rename(self.session_path / 'raw_ephys_data' / ('probe0' + str(this_path)[-1]))
+                
+        return
 
         
     def extract_sync_pulses(self):
@@ -159,7 +122,8 @@ class Pipeline:
         This also prepares for the synchronization of the spike times to the NIDAQ clock later on
         
         """
-
+        
+        
         # Detect data format if necessary
         if not hasattr(self, 'data_format'):
             self.detect_data_format()
@@ -171,44 +135,21 @@ class Pipeline:
                 self.nidq_file = list((self.session_path / 'raw_ephys_data').glob('*.nidq.*bin'))[0]
             else:
                 print(f'WARNING! .nidq.bin file not found in {self.session_path / "raw_ephys_data"}')
-
+    
             # Create synchronization file
             with open(self.nidq_file.with_suffix('.wiring.json'), 'w') as fp:
                 json.dump(self.nidq_sync, fp, indent=1)
             
-            # Create nidq sync file
-            task = EphysSyncRegisterRaw(session_path=self.session_path,
-                                        sync_collection='raw_ephys_data',
-                                        location='local')
-            task.run()
-
+            # Create nidq sync file        
+            EphysSyncRegisterRaw(session_path=self.session_path, sync_collection='raw_ephys_data').run()            
+        
             # Extract sync pulses    
             task = EphysSyncPulses(session_path=self.session_path, sync='nidq',
                                    sync_ext='bin', sync_namespace='spikeglx',
                                    sync_collection='raw_ephys_data',
-                                   device_collection='raw_ephys_data',
-                                   location='local')
+                                   device_collection='raw_ephys_data')
             task.run()
-
-            # Decompress nidq cbin again
-            ch_path = list((self.session_path / 'raw_ephys_data').glob('*ch'))[0]
-            r = mtscomp.Reader(chunk_duration=1.)
-            r.open(self.nidq_file.with_suffix('.cbin'), ch_path)
-            r.tofile(self.nidq_file.with_suffix('.bin'))
-            r.close()
-            os.remove(self.nidq_file.with_suffix('.cbin'))
-            self.nidq_file = self.nidq_file.with_suffix('.bin')
-
-            # Extract analog sync data
-            for ii, ch_name in enumerate(self.nidq_sync['SYNC_WIRING_ANALOG'].keys()):
-                nidq_data = si.read_spikeglx(self.session_path, stream_id='nidq')
-                analog_trace = np.squeeze(nidq_data.get_traces(channel_ids=[f'nidq#XA{ch_name[-1]}']))
-                timestamps = nidq_data.get_times()
-                np.save(self.session_path / ('analog.' + self.nidq_sync['SYNC_WIRING_ANALOG'][ch_name] + '.npy'),
-                        analog_trace)
-                if ii == 0:
-                    np.save(self.session_path / 'analog.timestamps.npy', timestamps)
-
+        
             # Extract digital sync timestamps
             sync_times = np.load(join(self.session_path, 'raw_ephys_data', '_spikeglx_sync.times.npy'))
             sync_polarities = np.load(join(self.session_path, 'raw_ephys_data', '_spikeglx_sync.polarities.npy'))
@@ -219,7 +160,6 @@ class Pipeline:
                 nidq_pulses = sync_times[(sync_channels == int(ch_name[-1])) & (sync_polarities == 1)]
                 np.save(join(self.session_path, self.nidq_sync['SYNC_WIRING_DIGITAL'][ch_name] + '.times.npy'),
                         nidq_pulses)
-
                 
         elif self.data_format == 'openephys':
             # TO DO
@@ -755,12 +695,12 @@ class Pipeline:
         # Create probe sync file
         task = EphysPulses(session_path=self.session_path, pname=self.this_probe,
                            sync_collection='raw_ephys_data',
-                           device_collection='raw_ephys_data',
-                           location='local')
+                           device_collection='raw_ephys_data')
         task.run()
         
         # Synchronize spike sorting to nidq clock
         sync_spike_sorting(self.ap_file, self.results_path)
+        
 
         return
         
@@ -805,15 +745,37 @@ class Pipeline:
                 # Recording is already compressed by a previous run
                 return
             
+            gc.collect()
             # Compress
             mtscomp.compress(self.ap_file, str(self.ap_file.with_suffix('.cbin')),
                              str(self.ap_file.with_suffix('.ch')),
                              sample_rate=rec.get_sampling_frequency(),
                              n_channels=rec.get_num_channels() + 1,
                              dtype=rec.get_dtype())
+            del rec
             
             # Delete original bin file
-            os.remove(self.ap_file)
+            # os.remove(self.ap_file)
+
+            # Jongwon 2026-03-11
+            # Original os.remove(self.ap_file) was replaced with a retry loop
+            # because Windows sometimes holds a file lock on the .bin file even after
+            # del rec, causing a PermissionError. Retries up to 5 times with a 2s delay
+            # to wait for the file handle to be released before attempting deletion.
+
+            import time
+            max_retries = 5
+            for i in range(max_retries):
+                try:
+                    if os.path.exists(self.ap_file):
+                        os.remove(self.ap_file)
+                    break 
+                except PermissionError:
+                    if i < max_retries - 1:
+                        print(f"File is using... Try to retry... ({i+1}/{max_retries})")
+                        time.sleep(2) # 2s waiting
+                    else:
+                        print('\nWARNING: could not delete original raw data file, delete manually!\n')
             
             # Update reference to ap file
             self.ap_file = self.ap_file.parent / (str(self.ap_file.stem) + '.cbin')
