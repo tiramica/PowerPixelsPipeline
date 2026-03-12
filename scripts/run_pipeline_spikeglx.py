@@ -134,9 +134,9 @@ if __name__ == "__main__":
             pp.neuron_metrics(sort, rec)
             pp.export_data(rec)
             pp.automatic_curation()
-            # Jongwon 2026-03-11: Run generate_curated_results_2.py after automatic curation,
-            # passing session_path as argument so the script can locate probe/sorting results
-            script_path = r"Y:\NeuRLab\protocol_specific\neuropixels\powerpixels\generate_curated_results_2.py"
+            # Jongwon 2026-03-11: Run generate_curated_results.py after automatic curation,
+            # passing session_path as an argument so the script can locate probe/sorting results
+            script_path = r"Y:\NeuRLab\protocol_specific\neuropixels\powerpixels\generate_curated_results.py"
             subprocess.run(["python", script_path, str(pp.session_path)])
 
             if pp.settings['USE_NIDAQ']:
@@ -149,4 +149,5 @@ if __name__ == "__main__":
 
         # Remove process_me.flag only if all probes are successfully processed
         if np.sum(probe_done) == len(probes):
+
             os.remove(session_path / 'process_me.flag')
