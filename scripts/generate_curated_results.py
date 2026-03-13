@@ -40,7 +40,7 @@ mid_part = folder_base_name.split('s')[0].replace('m', '')  # e.g. 1443
 # Jongwon 2026-03-11
 # Updated base_path to reflect new folder structure where probe00 sits inside
 # raw_ephys_data/ instead of directly under the session root
-base_path = root_path / "raw_ephys_data" / "probe00"
+base_path = root_path  / "probe00"
 sorting_path = base_path / "sorting"
 ks_output_dir = root_path / "kilosort4" / "probe00" / "sorter_output"
 phy_output_dir = ks_output_dir
