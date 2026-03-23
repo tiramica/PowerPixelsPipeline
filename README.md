@@ -101,7 +101,7 @@ It is recommended to install Power Pixels in an Anaconda or Miniforge environmen
 2. Open the Anaconda or Miniforge prompt
 3. Create a new environment: `conda create -n powerpixels python=3.10 git`
 4. Activate the environment: `conda activate powerpixels`
-5. Clone this repository: `git clone (https://github.com/tiramica/PowerPixelsPipeline.git`
+5. Clone this repository: `git clone https://github.com/tiramica/PowerPixelsPipeline.git`
 6. Install PowerPixels: `cd PowerPixelsPipeline && pip install -e .`
 7. Install `iblapps`: `git clone https://github.com/int-brain-lab/iblapps && pip install -e iblapps`
 
