@@ -8,6 +8,31 @@ import spikeinterface.exporters as se
 from spikeinterface.curation import CurationSorting
 from pathlib import Path
 import sys
+import platform
+import signal
+
+def get_server_base():
+    if platform.system() == "Windows":
+        return Path(r"Y:\NeuRLab\Data")
+    else:
+        def timeout_handler(signum, frame):
+            raise TimeoutError
+
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(10)  # 10 second timeout
+
+        try:
+            use_10g = input("Use 10G connection? (y/n, auto-No in 10s): ").strip().lower()
+            signal.alarm(0)  # Cancel timeout if input received
+        except TimeoutError:
+            print("No input received, using Y (standard) by default.")
+            use_10g = 'n'
+
+        if use_10g == 'y':
+            return Path("/mnt/Y_10G/NeuRLab/Data")
+        else:
+            return Path("/mnt/Y/NeuRLab/Data")
+
 
 # Jongwon 2026-03-11
 # This script is designed to be run in two scenarios:
@@ -173,8 +198,9 @@ raw_data_dir = root_path / "raw_ephys_data" / "probe00"
 
 try:
     # Define server target path using folder_base_name parsed from session path
+    server_base = get_server_base()
     # Format: Y:\NeuRLab\Data\{mid}\np\{base_name}\{base_name}_imec0
-    server_destination = Path(r"Y:\NeuRLab\Data") / mid_part / "np" / folder_base_name / f"{folder_base_name}_imec0"
+    server_destination = server_base / mid_part / "np" / folder_base_name / f"{folder_base_name}_imec0"
     server_destination.mkdir(parents=True, exist_ok=True)
     print(f"Destination created: {server_destination}")
 
@@ -192,7 +218,7 @@ try:
 
     # Copy all files from Kilosort/Phy output directory to server
     if ks_output_dir.exists():
-        print(f"Copying curated results from {ks_output_dir} to server...")
+        print(f"Copying curated results from {ks_output_dir} to {server_destination}...")
         for ks_file in ks_output_dir.iterdir():
             if ks_file.is_file():
                 dest_file = server_destination / ks_file.name
@@ -202,6 +228,12 @@ try:
                 except Exception as e:
                     print(f"Error copying {ks_file.name}: {e}")
         print("Migration complete. Local copies are preserved.")
+        shutil.copy2(str(ks_file), str(dest_file))
+
+        if dest_file.exists() and dest_file.stat().st_size == ks_file.stat().st_size:
+            print(f"Successfully copied: {ks_file.name}")
+        else:
+            print(f"WARNING: Copy failed silently: {ks_file.name}")
     else:
         print(f"Warning: Sorter output directory not found at {ks_output_dir}")
 

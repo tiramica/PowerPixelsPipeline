@@ -7,7 +7,7 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 import shutil
-
+import platform
 
 def prepare_raw_ephys_folder(session_path: Path):
     """
@@ -59,9 +59,32 @@ def prepare_raw_ephys_folder(session_path: Path):
         print(f'  Moving {folder.name} -> raw_ephys_data/{probe_name}')
         shutil.move(str(folder), str(raw_ephys_path / probe_name))
 
+def get_server_base():
+    if platform.system() == "Windows":
+        return Path(r"Y:\NeuRLab\Data")
+    else:
+        def timeout_handler(signum, frame):
+            raise TimeoutError
+
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(10)  # 10 second timeout
+
+        try:
+            use_10g = input("Use 10G connection? (y/n, auto-No in 10s): ").strip().lower()
+            signal.alarm(0)  # Cancel timeout if input received
+        except TimeoutError:
+            print("No input received, using Y (standard) by default.")
+            use_10g = 'n'
+
+        if use_10g == 'y':
+            return Path("/mnt/Y_10G/NeuRLab/Data")
+        else:
+            return Path("/mnt/Y/NeuRLab/Data")
 
 if __name__ == "__main__":
 
+    #check OS and set server base path accordingly
+    
     pp = Pipeline()
 
     # Jongwon 2026-03-11
@@ -135,10 +158,10 @@ if __name__ == "__main__":
             pp.export_data(rec)
             pp.automatic_curation()
             # Jongwon 2026-03-11: Run generate_curated_results.py after automatic curation,
-            # passing session_path as an argument so the script can locate probe/sorting results
-            script_path = r"Y:\NeuRLab\protocol_specific\neuropixels\powerpixels\generate_curated_results.py"
-            subprocess.run(["python", script_path, str(pp.session_path)])
-
+            # passing session_path as argument so the script can locate probe/sorting results
+            server_base = get_server_base()
+            script_path = server_base / "protocol_specific" / "neuropixels" / "powerpixels" / "scripts" / "generate_curated_results.py"
+            subprocess.run(["python", str(script_path), str(pp.session_path)])
             if pp.settings['USE_NIDAQ']:
                 pp.probe_synchronization()
 
@@ -149,5 +172,4 @@ if __name__ == "__main__":
 
         # Remove process_me.flag only if all probes are successfully processed
         if np.sum(probe_done) == len(probes):
-
             os.remove(session_path / 'process_me.flag')
