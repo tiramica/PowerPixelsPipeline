@@ -1,0 +1,20 @@
+$file = "C:\NP\m1424s6r2_g0_t0.imec0.ap.bin"
+$bufferSize = 1024MB
+$buffer = New-Object byte[] $bufferSize
+$stream = [System.IO.File]::OpenRead($file)
+$totalRead = 0
+
+try {
+    while ($true) {
+        $read = $stream.Read($buffer, 0, $buffer.Length)
+        if ($read -eq 0) { break }
+        $totalRead += $read
+        Write-Host ("읽음: {0:F2} GB" -f ($totalRead / 1GB))
+    }
+    Write-Host "완료! 총 $($totalRead / 1GB) GB 읽음"
+} catch {
+    Write-Host "I/O 에러 발생 위치: $($totalRead / 1GB) GB"
+    Write-Host "에러: $_"
+} finally {
+    $stream.Close()
+}
