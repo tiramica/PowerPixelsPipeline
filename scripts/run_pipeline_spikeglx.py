@@ -61,7 +61,7 @@ def prepare_raw_ephys_folder(session_path: Path):
 
 def get_server_base():
     if platform.system() == "Windows":
-        return Path(r"Y:\NeuRLab\Data")
+        return Path(r"Y:\NeuRLab")
     else:
         def timeout_handler(signum, frame):
             raise TimeoutError
@@ -77,9 +77,9 @@ def get_server_base():
             use_10g = 'n'
 
         if use_10g == 'y':
-            return Path("/mnt/Y_10G/NeuRLab/Data")
+            return Path("/mnt/Y_10G/NeuRLab")
         else:
-            return Path("/mnt/Y/NeuRLab/Data")
+            return Path("/mnt/Y/NeuRLab")
 
 if __name__ == "__main__":
 
@@ -160,7 +160,7 @@ if __name__ == "__main__":
             # Jongwon 2026-03-11: Run generate_curated_results.py after automatic curation,
             # passing session_path as argument so the script can locate probe/sorting results
             server_base = get_server_base()
-            script_path = server_base / "protocol_specific" / "neuropixels" / "powerpixels" / "scripts" / "generate_curated_results.py"
+            script_path = server_base / "protocol_specific" / "neuropixels" / "powerpixels" /"PowerPixelsPipeline" / "scripts" / "generate_curated_results.py"
             subprocess.run(["python", str(script_path), str(pp.session_path)])
             if pp.settings['USE_NIDAQ']:
                 pp.probe_synchronization()
